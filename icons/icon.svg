@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <!-- Background Circle -->
+    <circle cx="64" cy="64" r="60" fill="#2196F3"/>
+    
+    <!-- Bitcoin Symbol -->
+    <path d="M64 20C40.8 20 22 38.8 22 62C22 85.2 40.8 104 64 104C87.2 104 106 85.2 106 62C106 38.8 87.2 20 64 20ZM64 94C45.2 94 30 78.8 30 62C30 45.2 45.2 30 64 30C82.8 30 98 45.2 98 62C98 78.8 82.8 94 64 94Z" fill="white"/>
+    
+    <!-- Portfolio Chart -->
+    <path d="M44 70L54 60L64 75L74 55L84 65" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    
+    <!-- Currency Symbols -->
+    <text x="64" y="45" text-anchor="middle" fill="white" font-family="Arial" font-size="16" font-weight="bold">₿</text>
+    <text x="64" y="85" text-anchor="middle" fill="white" font-family="Arial" font-size="16" font-weight="bold">$</text>
+</svg> 
