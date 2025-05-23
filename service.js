@@ -4,6 +4,38 @@
  */
 const service = {
     /**
+     * Fetches data with timeout and retry logic
+     * @param {string} url - The URL to fetch
+     * @param {Object} options - Fetch options
+     * @returns {Promise<Response>}
+     */
+    async fetchWithRetry(url, options = {}, retries = 3) {
+        const timeout = options.timeout || 5000;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+        try {
+            const response = await fetch(url, {
+                ...options,
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response;
+        } catch (error) {
+            clearTimeout(timeoutId);
+            if (retries > 0 && (error.name === 'AbortError' || error.name === 'TypeError')) {
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                return this.fetchWithRetry(url, options, retries - 1);
+            }
+            throw error;
+        }
+    },
+
+    /**
      * Gets the current exchange rate between two currencies
      * @param {string} fromSymbol - The source currency symbol (e.g., 'BTC', 'ETH')
      * @param {string} toSymbol - The target currency symbol (e.g., 'USD')
@@ -20,14 +52,12 @@ const service = {
         }
         try {
             const url = `https://api.coingecko.com/api/v3/simple/price?ids=${id}&vs_currencies=usd`;
-            const response = await fetchWithTimeout(url, { timeout: 7000 });
-            if (response.ok) {
-                const data = await response.json();
-                if (data && data[id] && data[id].usd) {
-                    const rate = parseFloat(data[id].usd);
-                    if (rate && !isNaN(rate)) {
-                        return rate;
-                    }
+            const response = await this.fetchWithRetry(url, { timeout: 7000 });
+            const data = await response.json();
+            if (data && data[id] && data[id].usd) {
+                const rate = parseFloat(data[id].usd);
+                if (rate && !isNaN(rate)) {
+                    return rate;
                 }
             }
         } catch (e) {}
@@ -38,8 +68,8 @@ const service = {
      * Gets the current holdings for all supported currencies
      * @returns {Promise<Object>} A promise that resolves to an object with currency holdings
      */
-    getHoldings: async function() {
-        const symbols = ['BTC', 'ETH', 'BNB', 'SOL', 'ADA', 'XRP', 'DOT', 'DOGE'];
+    async getHoldings() {
+        const symbols = Object.keys(this.symbolToId);
         const ids = symbols.map(s => this.symbolToId[s]).join(',');
         let rates = {};
 
@@ -50,24 +80,32 @@ const service = {
         } else {
             try {
                 const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd`;
-                const response = await fetchWithTimeout(url, { timeout: 7000 });
-                if (response.ok) {
-                    const data = await response.json();
-                    for (const symbol of symbols) {
-                        const id = this.symbolToId[symbol];
-                        if (data[id] && data[id].usd) {
-                            rates[symbol] = parseFloat(data[id].usd);
-                        }
+                const response = await this.fetchWithRetry(url, { timeout: 7000 });
+                const data = await response.json();
+                
+                // Process and validate rates
+                for (const symbol of symbols) {
+                    const id = this.symbolToId[symbol];
+                    if (data[id] && typeof data[id].usd === 'number' && !isNaN(data[id].usd)) {
+                        rates[symbol] = data[id].usd;
                     }
-                    // Save to cache
-                    this.rateCache = rates;
-                    this.rateCacheTimestamp = now;
                 }
-            } catch (e) {}
+                
+                // Save to cache
+                this.rateCache = rates;
+                this.rateCacheTimestamp = now;
+            } catch (error) {
+                console.error('Error fetching rates:', error);
+                // Use cached rates if available, even if expired
+                if (this.rateCache) {
+                    rates = this.rateCache;
+                }
+            }
         }
 
+        // Process holdings in parallel
         const holdings = {};
-        for (const symbol of symbols) {
+        const holdingPromises = symbols.map(async symbol => {
             const amount = dao.getAmount(symbol);
             if (amount > 0) {
                 const rate = rates[symbol];
@@ -79,15 +117,22 @@ const service = {
                 } else {
                     holdings[symbol] = {
                         amount: amount,
-                        value: null // Mark as unavailable
+                        value: null
                     };
                 }
             }
-        }
+        });
+
+        await Promise.all(holdingPromises);
         return holdings;
     },
 
-    // Map currency symbols to CoinGecko IDs
+    // Cache configuration
+    cacheDuration: 60000, // 1 minute cache
+    rateCache: null,
+    rateCacheTimestamp: null,
+    
+    // Symbol to CoinGecko ID mapping
     symbolToId: {
         'BTC': 'bitcoin',
         'ETH': 'ethereum',
@@ -98,29 +143,7 @@ const service = {
         'DOT': 'polkadot',
         'DOGE': 'dogecoin'
     },
-
-    rateCache: null,
-    rateCacheTimestamp: 0,
-    cacheDuration: 120000, // 2 minutes
 };
-
-// Helper for fetch with timeout
-async function fetchWithTimeout(resource, options = {}) {
-    const { timeout = 7000 } = options; // 7 seconds default
-    const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), timeout);
-    try {
-        const response = await fetch(resource, {
-            ...options,
-            signal: controller.signal
-        });
-        clearTimeout(id);
-        return response;
-    } catch (error) {
-        clearTimeout(id);
-        throw error;
-    }
-}
 
 async function handleAdd() {
     const symbol = document.getElementById('currencySelect').value;

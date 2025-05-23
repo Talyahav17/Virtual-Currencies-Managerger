@@ -3,6 +3,11 @@
  * @global
  */
 const dao = {
+    // Cache for total value calculations
+    totalCache: null,
+    totalCacheTimestamp: null,
+    cacheDuration: 30000, // 30 seconds cache
+
     /**
      * Adds the specified amount to the given currency in local storage
      * @param {string} symbol - The currency symbol (e.g., 'BTC', 'ETH')
@@ -10,21 +15,27 @@ const dao = {
      */
     add: function(symbol, amount) {
         try {
+            // Validate input
+            if (!symbol || typeof amount !== 'number' || isNaN(amount) || amount <= 0) {
+                throw new Error('Invalid input parameters');
+            }
+
             // Get current amount from localStorage
-            let currentAmount = localStorage.getItem(symbol);
-            // Convert to number, defaulting to 0 if null or invalid
-            currentAmount = currentAmount ? parseFloat(currentAmount) : 0;
+            let currentAmount = this.getAmount(symbol);
             
-            // Add new amount to current amount
+            // Calculate new amount
             const newAmount = currentAmount + amount;
             
             // Store the updated amount
             localStorage.setItem(symbol, newAmount.toString());
             console.log(`Added ${amount} ${symbol}. Previous: ${currentAmount}, New total: ${newAmount}`);
             
+            // Invalidate total cache
+            this.totalCache = null;
+            
             // Verify the storage
-            const storedAmount = parseFloat(localStorage.getItem(symbol));
-            if (storedAmount !== newAmount) {
+            const storedAmount = this.getAmount(symbol);
+            if (Math.abs(storedAmount - newAmount) > 0.000001) {
                 throw new Error('Storage verification failed');
             }
         } catch (error) {
@@ -40,10 +51,13 @@ const dao = {
      */
     remove: function(symbol, amount) {
         try {
+            // Validate input
+            if (!symbol || typeof amount !== 'number' || isNaN(amount) || amount <= 0) {
+                throw new Error('Invalid input parameters');
+            }
+
             // Get current amount from localStorage
-            let currentAmount = localStorage.getItem(symbol);
-            // Convert to number, defaulting to 0 if null or invalid
-            currentAmount = currentAmount ? parseFloat(currentAmount) : 0;
+            let currentAmount = this.getAmount(symbol);
             
             // Calculate new amount, ensuring it doesn't go below 0
             const newAmount = Math.max(0, currentAmount - amount);
@@ -52,9 +66,12 @@ const dao = {
             localStorage.setItem(symbol, newAmount.toString());
             console.log(`Removed ${amount} ${symbol}. Previous: ${currentAmount}, New total: ${newAmount}`);
             
+            // Invalidate total cache
+            this.totalCache = null;
+            
             // Verify the storage
-            const storedAmount = parseFloat(localStorage.getItem(symbol));
-            if (storedAmount !== newAmount) {
+            const storedAmount = this.getAmount(symbol);
+            if (Math.abs(storedAmount - newAmount) > 0.000001) {
                 throw new Error('Storage verification failed');
             }
         } catch (error) {
@@ -69,27 +86,65 @@ const dao = {
      * @returns {number} The current amount
      */
     getAmount: function(symbol) {
-        const amount = localStorage.getItem(symbol);
-        return amount ? parseFloat(amount) : 0;
+        try {
+            const amount = localStorage.getItem(symbol);
+            return amount ? parseFloat(amount) : 0;
+        } catch (error) {
+            console.error('Error getting amount:', error);
+            return 0;
+        }
     },
 
     /**
      * Calculates the total value of all holdings in the specified currency
-     * @param {string} currency - The target currency for the total value (e.g., 'USD')
-     * @returns {Promise<number>} A promise that resolves to the total value
+     * @param {string} currency - The target currency (e.g., 'USD')
+     * @returns {Promise<number>} The total value
      */
     total: async function(currency) {
-        const symbols = ['BTC', 'ETH', 'BNB', 'SOL', 'ADA', 'XRP', 'DOT', 'DOGE'];
-        let total = 0;
-
-        for (const symbol of symbols) {
-            const amount = this.getAmount(symbol);
-            if (amount > 0) {
-                const rate = await service.getRate(symbol, currency);
-                total += amount * rate;
+        try {
+            // Check cache first
+            const now = Date.now();
+            if (this.totalCache && (now - this.totalCacheTimestamp) < this.cacheDuration) {
+                return this.totalCache;
             }
-        }
 
-        return total;
+            const holdings = await service.getHoldings();
+            let total = 0;
+
+            for (const data of Object.values(holdings)) {
+                if (data.value && typeof data.value === 'number' && !isNaN(data.value)) {
+                    total += data.value;
+                }
+            }
+
+            // Update cache
+            this.totalCache = total;
+            this.totalCacheTimestamp = now;
+
+            return total;
+        } catch (error) {
+            console.error('Error calculating total:', error);
+            throw error;
+        }
+    },
+
+    /**
+     * Gets all currency amounts
+     * @returns {Object} Object containing all currency amounts
+     */
+    getAllAmounts: function() {
+        try {
+            const amounts = {};
+            const symbols = Object.keys(service.symbolToId);
+            
+            for (const symbol of symbols) {
+                amounts[symbol] = this.getAmount(symbol);
+            }
+            
+            return amounts;
+        } catch (error) {
+            console.error('Error getting all amounts:', error);
+            return {};
+        }
     }
 }; 

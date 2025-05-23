@@ -161,6 +161,31 @@ async function updateTotalValue() {
 
 let updateInProgress = false;
 
+// Debounce function to limit how often a function can be called
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// Throttle function to limit how often a function can be called
+function throttle(func, limit) {
+    let inThrottle;
+    return function executedFunction(...args) {
+        if (!inThrottle) {
+            func(...args);
+            inThrottle = true;
+            setTimeout(() => inThrottle = false, limit);
+        }
+    };
+}
+
 async function updateUI() {
     if (updateInProgress) {
         console.log('Update already in progress, skipping...');
@@ -178,7 +203,10 @@ async function updateUI() {
         ]);
 
         // Update total value immediately
-        document.getElementById('totalValue').textContent = `$${formatNumber(total)}`;
+        const totalValueElement = document.getElementById('totalValue');
+        if (totalValueElement) {
+            totalValueElement.textContent = `$${formatNumber(total)}`;
+        }
 
         // Update holdings list and chart in parallel
         await Promise.all([
@@ -188,10 +216,36 @@ async function updateUI() {
         
     } catch (error) {
         console.error('Error updating UI:', error);
+        showError('Error updating data. Please try again.');
     } finally {
         updateInProgress = false;
         toggleLoading(false);
     }
+}
+
+// Debounced version of updateUI
+const debouncedUpdateUI = debounce(updateUI, 300);
+
+// Throttled version of updateUI for frequent updates
+const throttledUpdateUI = throttle(updateUI, 1000);
+
+function showError(message) {
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'alert alert-danger alert-dismissible fade show';
+    errorDiv.role = 'alert';
+    errorDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+    
+    const container = document.querySelector('.container');
+    container.insertBefore(errorDiv, container.firstChild);
+    
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => {
+        errorDiv.classList.remove('show');
+        setTimeout(() => errorDiv.remove(), 150);
+    }, 5000);
 }
 
 async function handleAdd() {
@@ -243,6 +297,7 @@ async function handleRemove() {
 // Optimize chart initialization
 let chartInitialized = false;
 let chartInitPromise = null;
+let chartUpdateTimeout = null;
 
 async function downloadApexCharts() {
     try {
@@ -389,6 +444,11 @@ async function updatePortfolioChart(holdings) {
         const chartContainer = document.getElementById('portfolioChart');
         if (!chartContainer) return;
 
+        // Clear any pending chart updates
+        if (chartUpdateTimeout) {
+            clearTimeout(chartUpdateTimeout);
+        }
+
         // Extract data for chart
         const labels = [];
         const values = [];
@@ -407,91 +467,96 @@ async function updatePortfolioChart(holdings) {
             return;
         }
 
-        // Clear existing chart
-        if (window.portfolioChart && typeof window.portfolioChart.destroy === 'function') {
-            try {
-                window.portfolioChart.destroy();
-            } catch (destroyErr) {
-                console.warn('Error destroying previous chart:', destroyErr);
+        // Schedule chart update to avoid UI blocking
+        chartUpdateTimeout = setTimeout(() => {
+            // Clear existing chart
+            if (window.portfolioChart && typeof window.portfolioChart.destroy === 'function') {
+                try {
+                    window.portfolioChart.destroy();
+                } catch (destroyErr) {
+                    console.warn('Error destroying previous chart:', destroyErr);
+                }
             }
-        }
-        window.portfolioChart = null;
+            window.portfolioChart = null;
 
-        // Clear the container
-        chartContainer.innerHTML = '';
+            // Clear the container
+            chartContainer.innerHTML = '';
 
-        const options = {
-            series: values,
-            chart: {
-                type: 'pie',
-                height: 280,
-                width: '100%',
-                animations: {
-                    enabled: true,
-                    easing: 'easeinout',
-                    speed: 500
-                },
-                toolbar: {
-                    show: false
-                }
-            },
-            labels: labels,
-            colors: [
-                '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0',
-                '#9966FF', '#FF9F40', '#C9CBCF', '#FF6384'
-            ],
-            legend: {
-                position: 'right',
-                fontSize: '12px',
-                markers: {
-                    width: 10,
-                    height: 10,
-                    radius: 5
-                },
-                itemMargin: {
-                    horizontal: 5,
-                    vertical: 3
-                }
-            },
-            tooltip: {
-                y: {
-                    formatter: function(value) {
-                        const percentage = ((value / totalValue) * 100).toFixed(1);
-                        return `$${formatNumber(value)} (${percentage}%)`;
-                    }
-                }
-            },
-            plotOptions: {
-                pie: {
-                    donut: {
-                        size: '0%'
+            const options = {
+                series: values,
+                chart: {
+                    type: 'pie',
+                    height: 280,
+                    width: '100%',
+                    animations: {
+                        enabled: true,
+                        easing: 'easeinout',
+                        speed: 500
                     },
-                    customScale: 0.8
-                }
-            },
-            responsive: [{
-                breakpoint: 480,
-                options: {
-                    chart: {
-                        height: 250
+                    toolbar: {
+                        show: false
                     },
-                    legend: {
-                        position: 'bottom',
-                        fontSize: '11px'
+                    redrawOnWindowResize: false
+                },
+                labels: labels,
+                colors: [
+                    '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0',
+                    '#9966FF', '#FF9F40', '#C9CBCF', '#FF6384'
+                ],
+                legend: {
+                    position: 'right',
+                    fontSize: '12px',
+                    markers: {
+                        width: 10,
+                        height: 10,
+                        radius: 5
+                    },
+                    itemMargin: {
+                        horizontal: 5,
+                        vertical: 3
                     }
-                }
-            }]
-        };
+                },
+                tooltip: {
+                    y: {
+                        formatter: function(value) {
+                            const percentage = ((value / totalValue) * 100).toFixed(1);
+                            return `$${formatNumber(value)} (${percentage}%)`;
+                        }
+                    }
+                },
+                plotOptions: {
+                    pie: {
+                        donut: {
+                            size: '0%'
+                        },
+                        customScale: 0.8
+                    }
+                },
+                responsive: [{
+                    breakpoint: 480,
+                    options: {
+                        chart: {
+                            height: 250
+                        },
+                        legend: {
+                            position: 'bottom',
+                            fontSize: '11px'
+                        }
+                    }
+                }]
+            };
 
-        // Create new chart instance
-        window.portfolioChart = new ApexCharts(chartContainer, options);
-        
-        // Wait for the chart to be fully rendered
-        await new Promise((resolve) => {
+            // Create new chart instance
+            window.portfolioChart = new ApexCharts(chartContainer, options);
+            
+            // Wait for the chart to be fully rendered
             window.portfolioChart.render().then(() => {
-                setTimeout(resolve, 100); // Small delay to ensure chart is fully rendered
+                // Force a redraw after a short delay to ensure proper rendering
+                setTimeout(() => {
+                    window.portfolioChart.render();
+                }, 100);
             });
-        });
+        }, 0);
 
     } catch (error) {
         console.error('Error in updatePortfolioChart:', error);
@@ -524,10 +589,18 @@ function showChartError(container, message) {
 
 // Event Listeners
 document.addEventListener('DOMContentLoaded', async () => {
+    // Update theme colors
+    updateThemeColors();
+    
+    // Listen for theme changes
+    chrome.theme.onUpdated.addListener(() => {
+        updateThemeColors();
+    });
+    
     // Check and update manifest if needed
     await checkAndUpdateManifest();
     
-    // Rest of your existing DOMContentLoaded code...
+    // Add event listeners
     const addBtn = document.getElementById('addBtn');
     if (addBtn) {
         addBtn.addEventListener('click', handleAdd);
@@ -546,8 +619,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // Initial UI update
-    updateUI();
+    await updateUI();
 
-    // Update UI every minute
-    setInterval(updateUI, 60000);
+    // Update UI every minute with throttling
+    setInterval(throttledUpdateUI, 60000);
+    
+    // Add visibility change listener for better performance
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            debouncedUpdateUI();
+        }
+    });
 }); 
