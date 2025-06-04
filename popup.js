@@ -575,13 +575,19 @@ function showChartError(container, message) {
     `;
 }
 
+// Update theme colors based on system preference
+function updateThemeColors() {
+    const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    document.body.classList.toggle('dark-mode', isDarkMode);
+}
+
 // Event Listeners
 document.addEventListener('DOMContentLoaded', async () => {
     // Update theme colors
     updateThemeColors();
     
     // Listen for theme changes
-    chrome.theme.onUpdated.addListener(() => {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
         updateThemeColors();
     });
     

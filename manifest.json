@@ -5,11 +5,10 @@
     "description": "Manage your virtual currency holdings across multiple trading systems",
     "permissions": [
       "storage",
-      "downloads",
-      "theme"
+      "downloads"
     ],
     "content_security_policy": {
-      "extension_pages": "script-src 'self' https://cdn.jsdelivr.net; object-src 'self'"
+      "extension_pages": "script-src 'self' https://cdn.jsdelivr.net; style-src 'self' https://cdn.jsdelivr.net; object-src 'self'"
     },
     "action": {
       "default_popup": "popup.html",
