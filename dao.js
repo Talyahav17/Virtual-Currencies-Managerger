@@ -6,7 +6,27 @@ const dao = {
     // Cache for total value calculations
     totalCache: null,
     totalCacheTimestamp: null,
-    cacheDuration: 30000, // 30 seconds cache
+    cacheDuration: 300000, // 5 minutes cache (increased from 30 seconds)
+    
+    // Cache for individual currency amounts
+    amountCache: new Map(),
+    amountCacheTimestamp: null,
+
+    /**
+     * Gets the amount for a specific currency
+     * @param {string} symbol - The currency symbol
+     * @returns {number} The amount of the currency
+     */
+    getAmount: function(symbol) {
+        // Check cache first
+        if (this.amountCache.has(symbol)) {
+            return this.amountCache.get(symbol);
+        }
+
+        const amount = parseFloat(localStorage.getItem(symbol)) || 0;
+        this.amountCache.set(symbol, amount);
+        return amount;
+    },
 
     /**
      * Adds the specified amount to the given currency in local storage
@@ -20,7 +40,7 @@ const dao = {
                 throw new Error('Invalid input parameters');
             }
 
-            // Get current amount from localStorage
+            // Get current amount from cache or storage
             let currentAmount = this.getAmount(symbol);
             
             // Calculate new amount
@@ -28,16 +48,14 @@ const dao = {
             
             // Store the updated amount
             localStorage.setItem(symbol, newAmount.toString());
-            console.log(`Added ${amount} ${symbol}. Previous: ${currentAmount}, New total: ${newAmount}`);
+            
+            // Update cache
+            this.amountCache.set(symbol, newAmount);
             
             // Invalidate total cache
             this.totalCache = null;
             
-            // Verify the storage
-            const storedAmount = this.getAmount(symbol);
-            if (Math.abs(storedAmount - newAmount) > 0.000001) {
-                throw new Error('Storage verification failed');
-            }
+            console.log(`Added ${amount} ${symbol}. Previous: ${currentAmount}, New total: ${newAmount}`);
         } catch (error) {
             console.error('Error adding currency:', error);
             throw error;
@@ -46,7 +64,7 @@ const dao = {
 
     /**
      * Removes the specified amount from the given currency in local storage
-     * @param {string} symbol - The currency symbol (e.g., 'BTC', 'ETH')
+     * @param {string} symbol - The currency symbol
      * @param {number} amount - The amount to remove
      */
     remove: function(symbol, amount) {
@@ -56,24 +74,22 @@ const dao = {
                 throw new Error('Invalid input parameters');
             }
 
-            // Get current amount from localStorage
+            // Get current amount from cache or storage
             let currentAmount = this.getAmount(symbol);
             
-            // Calculate new amount, ensuring it doesn't go below 0
+            // Calculate new amount
             const newAmount = Math.max(0, currentAmount - amount);
             
             // Store the updated amount
             localStorage.setItem(symbol, newAmount.toString());
-            console.log(`Removed ${amount} ${symbol}. Previous: ${currentAmount}, New total: ${newAmount}`);
+            
+            // Update cache
+            this.amountCache.set(symbol, newAmount);
             
             // Invalidate total cache
             this.totalCache = null;
             
-            // Verify the storage
-            const storedAmount = this.getAmount(symbol);
-            if (Math.abs(storedAmount - newAmount) > 0.000001) {
-                throw new Error('Storage verification failed');
-            }
+            console.log(`Removed ${amount} ${symbol}. Previous: ${currentAmount}, New total: ${newAmount}`);
         } catch (error) {
             console.error('Error removing currency:', error);
             throw error;
@@ -81,17 +97,23 @@ const dao = {
     },
 
     /**
-     * Gets the current amount for a specific currency
-     * @param {string} symbol - The currency symbol
-     * @returns {number} The current amount
+     * Clears all currency data from storage
      */
-    getAmount: function(symbol) {
+    clear: function() {
         try {
-            const amount = localStorage.getItem(symbol);
-            return amount ? parseFloat(amount) : 0;
+            // Clear localStorage
+            Object.keys(this.symbolToId).forEach(symbol => {
+                localStorage.removeItem(symbol);
+            });
+            
+            // Clear caches
+            this.amountCache.clear();
+            this.totalCache = null;
+            
+            console.log('All currency data cleared');
         } catch (error) {
-            console.error('Error getting amount:', error);
-            return 0;
+            console.error('Error clearing currency data:', error);
+            throw error;
         }
     },
 

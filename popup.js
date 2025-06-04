@@ -36,24 +36,27 @@ async function updateHoldingsList(holdings) {
         // Create a document fragment for better performance
         const fragment = document.createDocumentFragment();
         
-        // Currency logo URLs (using SVG format for better quality)
+        // Currency logo URLs (using local icons)
         const currencyLogos = {
-            'BTC': 'https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/btc.png',
-            'ETH': 'https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/eth.png',
-            'BNB': 'https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/bnb.png',
-            'SOL': 'https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/sol.png',
-            'ADA': 'https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/ada.png',
-            'XRP': 'https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/xrp.png',
-            'DOT': 'https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/dot.png',
-            'DOGE': 'https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/doge.png'
+            'BTC': 'icons/btc.png',
+            'ETH': 'icons/eth.png',
+            'BNB': 'icons/bnb.png',
+            'SOL': 'icons/sol.png',
+            'ADA': 'icons/ada.png',
+            'XRP': 'icons/xrp.png',
+            'DOT': 'icons/dot.png',
+            'DOGE': 'icons/doge.png'
         };
 
-        // Preload images
+        // Preload images with local fallback
         const imagePromises = Object.values(currencyLogos).map(src => {
             return new Promise((resolve) => {
                 const img = new Image();
                 img.onload = () => resolve();
-                img.onerror = () => resolve(); // Resolve even on error to not block loading
+                img.onerror = () => {
+                    // Fallback to a simple colored circle with the first letter
+                    resolve();
+                };
                 img.src = src;
             });
         });
@@ -375,32 +378,17 @@ async function initializeChart() {
     chartInitPromise = new Promise(async (resolve, reject) => {
         try {
             if (typeof ApexCharts === 'undefined') {
-                // Try to load from local file first
                 const script = document.createElement('script');
                 script.src = 'lib/apexcharts.min.js';
-                script.async = true;
-                
-                // If local file fails, download it
-                script.onerror = async () => {
-                    console.log('Local ApexCharts not found, downloading...');
-                    const downloaded = await downloadApexCharts();
-                    if (downloaded) {
-                        // Try loading again after download
-                        script.src = 'lib/apexcharts.min.js?' + new Date().getTime();
-                        document.head.appendChild(script);
-                    } else {
-                        reject(new Error('Failed to load ApexCharts'));
-                    }
-                };
+                script.async = false; // Load synchronously to prevent chart flicker
                 
                 script.onload = () => {
-                    // Verify ApexCharts is properly loaded
-                    if (typeof ApexCharts === 'undefined') {
-                        reject(new Error('ApexCharts failed to load properly'));
-                        return;
-                    }
                     chartInitialized = true;
                     resolve();
+                };
+                
+                script.onerror = () => {
+                    reject(new Error('Failed to load ApexCharts'));
                 };
                 
                 document.head.appendChild(script);

@@ -70,7 +70,6 @@ const service = {
      */
     async getHoldings() {
         const symbols = Object.keys(this.symbolToId);
-        const ids = symbols.map(s => this.symbolToId[s]).join(',');
         let rates = {};
 
         // Use cache if not expired
@@ -79,15 +78,26 @@ const service = {
             rates = this.rateCache;
         } else {
             try {
-                const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd`;
-                const response = await this.fetchWithRetry(url, { timeout: 7000 });
-                const data = await response.json();
-                
-                // Process and validate rates
-                for (const symbol of symbols) {
-                    const id = this.symbolToId[symbol];
-                    if (data[id] && typeof data[id].usd === 'number' && !isNaN(data[id].usd)) {
-                        rates[symbol] = data[id].usd;
+                // Process symbols in batches to avoid rate limiting
+                for (let i = 0; i < symbols.length; i += this.batchSize) {
+                    const batchSymbols = symbols.slice(i, i + this.batchSize);
+                    const batchIds = batchSymbols.map(s => this.symbolToId[s]).join(',');
+                    
+                    const url = `https://api.coingecko.com/api/v3/simple/price?ids=${batchIds}&vs_currencies=usd`;
+                    const response = await this.fetchWithRetry(url, { timeout: 5000 });
+                    const data = await response.json();
+                    
+                    // Process and validate rates for this batch
+                    for (const symbol of batchSymbols) {
+                        const id = this.symbolToId[symbol];
+                        if (data[id] && typeof data[id].usd === 'number' && !isNaN(data[id].usd)) {
+                            rates[symbol] = data[id].usd;
+                        }
+                    }
+                    
+                    // Add a small delay between batches to avoid rate limiting
+                    if (i + this.batchSize < symbols.length) {
+                        await new Promise(resolve => setTimeout(resolve, 1000));
                     }
                 }
                 
@@ -103,34 +113,29 @@ const service = {
             }
         }
 
-        // Process holdings in parallel
+        // Process holdings in parallel with rate limiting
         const holdings = {};
-        const holdingPromises = symbols.map(async symbol => {
-            const amount = dao.getAmount(symbol);
-            if (amount > 0) {
-                const rate = rates[symbol];
-                if (rate && !isNaN(rate)) {
-                    holdings[symbol] = {
-                        amount: amount,
-                        value: amount * rate
-                    };
-                } else {
-                    holdings[symbol] = {
-                        amount: amount,
-                        value: null
-                    };
-                }
+        const holdingsPromises = symbols.map(async (symbol) => {
+            const amount = await dao.getAmount(symbol);
+            if (amount > 0 && rates[symbol]) {
+                holdings[symbol] = {
+                    amount: amount,
+                    value: amount * rates[symbol]
+                };
             }
         });
 
-        await Promise.all(holdingPromises);
+        await Promise.all(holdingsPromises);
         return holdings;
     },
 
     // Cache configuration
-    cacheDuration: 60000, // 1 minute cache
+    cacheDuration: 300000, // 5 minutes cache (increased from 1 minute)
     rateCache: null,
     rateCacheTimestamp: null,
+    
+    // Batch processing for multiple currencies
+    batchSize: 5, // Process currencies in batches of 5
     
     // Symbol to CoinGecko ID mapping
     symbolToId: {
