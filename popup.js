@@ -174,41 +174,7 @@ const VirtualCurrenciesApp = {
         document.getElementById('totalValue').textContent = `$${this.formatNumber(total)}`;
     },
 
-    /**
-     * Initializes the Chart.js library by loading it dynamically
-     * @returns {Promise<void>} A promise that resolves when the chart library is loaded
-     */
-    async initializeChart() {
-        if (this.chartInitialized) return;
-        
-        try {
-            console.log('Initializing chart library...');
-            // Load Chart.js dynamically from CDN
-            if (typeof Chart === 'undefined') {
-                console.log('Chart.js not found, loading from CDN...');
-                const script = document.createElement('script');
-                script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js';
-                script.async = true;
-                await new Promise((resolve, reject) => {
-                    script.onload = () => {
-                        console.log('Chart.js loaded successfully');
-                        resolve();
-                    };
-                    script.onerror = (error) => {
-                        console.error('Failed to load Chart.js:', error);
-                        reject(error);
-                    };
-                    document.head.appendChild(script);
-                });
-            } else {
-                console.log('Chart.js already available');
-            }
-            this.chartInitialized = true;
-        } catch (error) {
-            console.error('Error initializing chart:', error);
-            throw error;
-        }
-    },
+
 
     /**
      * Updates the portfolio pie chart
@@ -223,13 +189,10 @@ const VirtualCurrenciesApp = {
                 return;
             }
 
-            // Initialize chart if not already done
-            await this.initializeChart();
-
             // Prepare chart data
             const chartData = Object.entries(holdings).map(([symbol, data]) => ({
-                x: symbol,
-                y: data.value
+                symbol: symbol,
+                value: data.value
             }));
 
             console.log('Chart data prepared:', chartData);
@@ -242,7 +205,7 @@ const VirtualCurrenciesApp = {
             }
 
             // Calculate total value for percentages
-            const totalValue = chartData.reduce((sum, item) => sum + item.y, 0);
+            const totalValue = chartData.reduce((sum, item) => sum + item.value, 0);
             console.log('Total value:', totalValue);
 
             if (totalValue <= 0) {
@@ -251,93 +214,40 @@ const VirtualCurrenciesApp = {
                 return;
             }
 
-            // Add percentage labels
-            const chartDataWithLabels = chartData.map(item => ({
-                ...item,
-                label: `${item.x}: ${this.formatNumber((item.y / totalValue) * 100, 1)}%`
-            }));
-
-            console.log('Chart data with labels:', chartDataWithLabels);
-
-            // Create or update chart
-            if (chartContainer.chart) {
-                console.log('Updating existing chart');
-                chartContainer.chart.data.labels = chartDataWithLabels.map(item => item.x);
-                chartContainer.chart.data.datasets[0].data = chartDataWithLabels.map(item => item.y);
-                chartContainer.chart.update();
-            } else {
-                console.log('Creating new chart');
+            // Create simple HTML-based chart
+            console.log('Creating simple HTML chart');
+            
+            const colors = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40', '#FF6384', '#C9CBCF'];
+            
+            let chartHTML = '<div class="chart-container" style="position: relative; height: 300px; width: 100%;">';
+            chartHTML += '<div class="chart-legend" style="margin-top: 20px;">';
+            
+            chartData.forEach((item, index) => {
+                const percentage = ((item.value / totalValue) * 100).toFixed(1);
+                const color = colors[index % colors.length];
                 
-                // Create canvas element for Chart.js
-                const canvas = document.createElement('canvas');
-                canvas.id = 'portfolioChartCanvas';
-                canvas.width = 400;
-                canvas.height = 300;
-                chartContainer.innerHTML = '';
-                chartContainer.appendChild(canvas);
-                
-                // Create new chart with Chart.js
-                const ctx = canvas.getContext('2d');
-                const chartData = {
-                    labels: chartDataWithLabels.map(item => item.x),
-                    datasets: [{
-                        data: chartDataWithLabels.map(item => item.y),
-                        backgroundColor: [
-                            '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0',
-                            '#9966FF', '#FF9F40', '#FF6384', '#C9CBCF'
-                        ],
-                        borderWidth: 2,
-                        borderColor: '#fff'
-                    }]
-                };
-                
-                const options = {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'bottom',
-                            labels: {
-                                color: document.documentElement.getAttribute('data-bs-theme') === 'dark' ? '#fff' : '#000',
-                                padding: 20,
-                                usePointStyle: true
-                            }
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    const label = context.label || '';
-                                    const value = context.parsed;
-                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                    const percentage = ((value / total) * 100).toFixed(1);
-                                    return `${label}: $${value.toLocaleString('en-US', {
-                                        minimumFractionDigits: 2,
-                                        maximumFractionDigits: 2
-                                    })} (${percentage}%)`;
-                                }
-                            }
-                        }
-                    }
-                };
-
-                try {
-                    console.log('Creating Chart.js instance...');
-                    chartContainer.chart = new Chart(ctx, {
-                        type: 'pie',
-                        data: chartData,
-                        options: options
-                    });
-                    console.log('Chart rendered successfully');
-                } catch (chartError) {
-                    console.error('Error creating chart:', chartError);
-                    this.showChartError(chartContainer, 'Failed to create chart: ' + chartError.message);
-                }
-            }
+                chartHTML += `
+                    <div class="legend-item" style="display: flex; align-items: center; margin-bottom: 10px;">
+                        <div class="color-box" style="width: 20px; height: 20px; background-color: ${color}; border-radius: 50%; margin-right: 10px;"></div>
+                        <div class="legend-text">
+                            <strong>${item.symbol}</strong>: ${percentage}% 
+                            <span style="color: #666;">($${this.formatNumber(item.value)})</span>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            chartHTML += '</div>';
+            chartHTML += '</div>';
+            
+            chartContainer.innerHTML = chartHTML;
+            console.log('Simple HTML chart created successfully');
+            
         } catch (error) {
             console.error('Error updating portfolio chart:', error);
             const chartContainer = document.getElementById('portfolioChart');
             if (chartContainer) {
-                this.showChartError(chartContainer, 'Failed to load chart');
+                this.showChartError(chartContainer, 'Failed to load chart: ' + error.message);
             }
         }
     },
