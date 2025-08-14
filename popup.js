@@ -347,8 +347,8 @@ const VirtualCurrenciesApp = {
      * Handles adding new currency holdings
      */
     async handleAdd() {
-        const symbol = document.getElementById('currencySymbol').value.toUpperCase();
-        const amount = parseFloat(document.getElementById('currencyAmount').value);
+        const symbol = document.getElementById('currencySelect').value;
+        const amount = parseFloat(document.getElementById('amount').value);
         
         if (!symbol || isNaN(amount) || amount <= 0) {
             alert('Please enter a valid currency symbol and amount');
@@ -361,8 +361,7 @@ const VirtualCurrenciesApp = {
             await this.updateUI();
             
             // Clear form
-            document.getElementById('currencySymbol').value = '';
-            document.getElementById('currencyAmount').value = '';
+            document.getElementById('amount').value = '';
             
             console.log(`Added ${amount} ${symbol}`);
         } catch (error) {
@@ -377,8 +376,8 @@ const VirtualCurrenciesApp = {
      * Handles removing currency holdings
      */
     async handleRemove() {
-        const symbol = document.getElementById('removeCurrencySymbol').value.toUpperCase();
-        const amount = parseFloat(document.getElementById('removeCurrencyAmount').value);
+        const symbol = document.getElementById('currencySelect').value;
+        const amount = parseFloat(document.getElementById('amount').value);
         
         if (!symbol || isNaN(amount) || amount <= 0) {
             alert('Please enter a valid currency symbol and amount');
@@ -400,8 +399,7 @@ const VirtualCurrenciesApp = {
             await this.updateUI();
             
             // Clear form
-            document.getElementById('removeCurrencySymbol').value = '';
-            document.getElementById('removeCurrencyAmount').value = '';
+            document.getElementById('amount').value = '';
             
             console.log(`Removed ${amount} ${symbol}`);
         } catch (error) {
@@ -421,13 +419,11 @@ const VirtualCurrenciesApp = {
             
             try {
                 // Set up event listeners
-                document.getElementById('addForm').addEventListener('submit', (e) => {
-                    e.preventDefault();
+                document.getElementById('addBtn').addEventListener('click', () => {
                     this.handleAdd();
                 });
                 
-                document.getElementById('removeForm').addEventListener('submit', (e) => {
-                    e.preventDefault();
+                document.getElementById('removeBtn').addEventListener('click', () => {
                     this.handleRemove();
                 });
                 
