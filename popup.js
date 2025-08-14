@@ -182,16 +182,26 @@ const VirtualCurrenciesApp = {
         if (this.chartInitialized) return;
         
         try {
-            // Load ApexCharts dynamically
+            console.log('Initializing chart library...');
+            // Load ApexCharts dynamically from CDN
             if (typeof ApexCharts === 'undefined') {
+                console.log('ApexCharts not found, loading from CDN...');
                 const script = document.createElement('script');
-                script.src = 'lib/apexcharts.min.js';
+                script.src = 'https://cdn.jsdelivr.net/npm/apexcharts@3.45.1/dist/apexcharts.min.js';
                 script.async = true;
                 await new Promise((resolve, reject) => {
-                    script.onload = resolve;
-                    script.onerror = reject;
+                    script.onload = () => {
+                        console.log('ApexCharts loaded successfully');
+                        resolve();
+                    };
+                    script.onerror = (error) => {
+                        console.error('Failed to load ApexCharts:', error);
+                        reject(error);
+                    };
                     document.head.appendChild(script);
                 });
+            } else {
+                console.log('ApexCharts already available');
             }
             this.chartInitialized = true;
         } catch (error) {
@@ -305,12 +315,14 @@ const VirtualCurrenciesApp = {
                 };
 
                 try {
+                    console.log('Creating ApexCharts instance...');
                     chartContainer.chart = new ApexCharts(chartContainer, options);
-                    chartContainer.chart.render();
-                    console.log('Chart created successfully');
+                    console.log('Chart instance created, rendering...');
+                    await chartContainer.chart.render();
+                    console.log('Chart rendered successfully');
                 } catch (chartError) {
                     console.error('Error creating chart:', chartError);
-                    this.showChartError(chartContainer, 'Failed to create chart');
+                    this.showChartError(chartContainer, 'Failed to create chart: ' + chartError.message);
                 }
             }
         } catch (error) {
