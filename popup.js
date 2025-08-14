@@ -357,7 +357,7 @@ const VirtualCurrenciesApp = {
         
         try {
             this.toggleLoading(true);
-            await service.addHolding(symbol, amount);
+            dao.add(symbol, amount);
             await this.updateUI();
             
             // Clear form
@@ -386,8 +386,7 @@ const VirtualCurrenciesApp = {
         
         try {
             // Get current holdings to validate removal
-            const currentHoldings = await service.getHoldings();
-            const currentAmount = currentHoldings[symbol]?.amount || 0;
+            const currentAmount = dao.getAmount(symbol);
             
             if (amount > currentAmount) {
                 alert(`Cannot remove more ${symbol} than you currently own. You have ${this.formatNumber(currentAmount, 3)} ${symbol}.`);
@@ -395,7 +394,7 @@ const VirtualCurrenciesApp = {
             }
             
             this.toggleLoading(true);
-            await service.removeHolding(symbol, amount);
+            dao.remove(symbol, amount);
             await this.updateUI();
             
             // Clear form
