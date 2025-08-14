@@ -206,6 +206,7 @@ const VirtualCurrenciesApp = {
      */
     async updatePortfolioChart(holdings) {
         try {
+            console.log('Updating portfolio chart with holdings:', holdings);
             const chartContainer = document.getElementById('portfolioChart');
             if (!chartContainer) {
                 console.error('Chart container not found');
@@ -221,8 +222,24 @@ const VirtualCurrenciesApp = {
                 y: data.value
             }));
 
+            console.log('Chart data prepared:', chartData);
+
+            // Check if we have valid data
+            if (chartData.length === 0) {
+                console.log('No chart data available');
+                this.showChartError(chartContainer, 'No holdings to display');
+                return;
+            }
+
             // Calculate total value for percentages
             const totalValue = chartData.reduce((sum, item) => sum + item.y, 0);
+            console.log('Total value:', totalValue);
+
+            if (totalValue <= 0) {
+                console.log('Total value is 0 or negative');
+                this.showChartError(chartContainer, 'No holdings with value to display');
+                return;
+            }
 
             // Add percentage labels
             const chartDataWithLabels = chartData.map(item => ({
@@ -230,12 +247,16 @@ const VirtualCurrenciesApp = {
                 label: `${item.x}: ${this.formatNumber((item.y / totalValue) * 100, 1)}%`
             }));
 
+            console.log('Chart data with labels:', chartDataWithLabels);
+
             // Create or update chart
             if (chartContainer.chart) {
+                console.log('Updating existing chart');
                 chartContainer.chart.updateSeries([{
                     data: chartDataWithLabels
                 }]);
             } else {
+                console.log('Creating new chart');
                 // Create new chart
                 const options = {
                     series: [{
@@ -286,6 +307,7 @@ const VirtualCurrenciesApp = {
                 try {
                     chartContainer.chart = new ApexCharts(chartContainer, options);
                     chartContainer.chart.render();
+                    console.log('Chart created successfully');
                 } catch (chartError) {
                     console.error('Error creating chart:', chartError);
                     this.showChartError(chartContainer, 'Failed to create chart');
@@ -329,6 +351,7 @@ const VirtualCurrenciesApp = {
             console.log('Current holdings:', holdings);
             
             // Update all UI components
+            console.log('Starting UI updates...');
             await Promise.all([
                 this.updateHoldingsList(holdings),
                 this.updateTotalValue(),
