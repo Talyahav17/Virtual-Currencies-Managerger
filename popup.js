@@ -175,7 +175,7 @@ const VirtualCurrenciesApp = {
     },
 
     /**
-     * Initializes the ApexCharts library by loading it dynamically
+     * Initializes the Chart.js library by loading it dynamically
      * @returns {Promise<void>} A promise that resolves when the chart library is loaded
      */
     async initializeChart() {
@@ -183,25 +183,25 @@ const VirtualCurrenciesApp = {
         
         try {
             console.log('Initializing chart library...');
-            // Load ApexCharts dynamically from CDN
-            if (typeof ApexCharts === 'undefined') {
-                console.log('ApexCharts not found, loading from CDN...');
+            // Load Chart.js dynamically from CDN
+            if (typeof Chart === 'undefined') {
+                console.log('Chart.js not found, loading from CDN...');
                 const script = document.createElement('script');
-                script.src = 'https://cdn.jsdelivr.net/npm/apexcharts@3.45.1/dist/apexcharts.min.js';
+                script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js';
                 script.async = true;
                 await new Promise((resolve, reject) => {
                     script.onload = () => {
-                        console.log('ApexCharts loaded successfully');
+                        console.log('Chart.js loaded successfully');
                         resolve();
                     };
                     script.onerror = (error) => {
-                        console.error('Failed to load ApexCharts:', error);
+                        console.error('Failed to load Chart.js:', error);
                         reject(error);
                     };
                     document.head.appendChild(script);
                 });
             } else {
-                console.log('ApexCharts already available');
+                console.log('Chart.js already available');
             }
             this.chartInitialized = true;
         } catch (error) {
@@ -262,63 +262,71 @@ const VirtualCurrenciesApp = {
             // Create or update chart
             if (chartContainer.chart) {
                 console.log('Updating existing chart');
-                chartContainer.chart.updateSeries([{
-                    data: chartDataWithLabels
-                }]);
+                chartContainer.chart.data.labels = chartDataWithLabels.map(item => item.x);
+                chartContainer.chart.data.datasets[0].data = chartDataWithLabels.map(item => item.y);
+                chartContainer.chart.update();
             } else {
                 console.log('Creating new chart');
-                // Create new chart
-                const options = {
-                    series: [{
-                        data: chartDataWithLabels
-                    }],
-                    chart: {
-                        type: 'pie',
-                        height: 300,
-                        background: 'transparent'
-                    },
-                    theme: {
-                        mode: document.documentElement.getAttribute('data-bs-theme') || 'light'
-                    },
-                    labels: chartDataWithLabels.map(item => item.label),
-                    legend: {
-                        position: 'bottom',
-                        labels: {
-                            colors: document.documentElement.getAttribute('data-bs-theme') === 'dark' ? '#fff' : '#000'
-                        }
-                    },
-                    tooltip: {
-                        y: {
-                            formatter: function(value) {
-                                return `$${value.toLocaleString('en-US', {
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 2
-                                })}`;
-                            }
-                        }
-                    },
-                    colors: [
-                        '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0',
-                        '#9966FF', '#FF9F40', '#FF6384', '#C9CBCF'
-                    ],
-                    responsive: [{
-                        breakpoint: 480,
-                        options: {
-                            chart: {
-                                height: 250
-                            },
-                            legend: {
-                                position: 'bottom'
-                            }
-                        }
+                
+                // Create canvas element for Chart.js
+                const canvas = document.createElement('canvas');
+                canvas.id = 'portfolioChartCanvas';
+                canvas.width = 400;
+                canvas.height = 300;
+                chartContainer.innerHTML = '';
+                chartContainer.appendChild(canvas);
+                
+                // Create new chart with Chart.js
+                const ctx = canvas.getContext('2d');
+                const chartData = {
+                    labels: chartDataWithLabels.map(item => item.x),
+                    datasets: [{
+                        data: chartDataWithLabels.map(item => item.y),
+                        backgroundColor: [
+                            '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0',
+                            '#9966FF', '#FF9F40', '#FF6384', '#C9CBCF'
+                        ],
+                        borderWidth: 2,
+                        borderColor: '#fff'
                     }]
+                };
+                
+                const options = {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                color: document.documentElement.getAttribute('data-bs-theme') === 'dark' ? '#fff' : '#000',
+                                padding: 20,
+                                usePointStyle: true
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.parsed;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = ((value / total) * 100).toFixed(1);
+                                    return `${label}: $${value.toLocaleString('en-US', {
+                                        minimumFractionDigits: 2,
+                                        maximumFractionDigits: 2
+                                    })} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
                 };
 
                 try {
-                    console.log('Creating ApexCharts instance...');
-                    chartContainer.chart = new ApexCharts(chartContainer, options);
-                    console.log('Chart instance created, rendering...');
-                    await chartContainer.chart.render();
+                    console.log('Creating Chart.js instance...');
+                    chartContainer.chart = new Chart(ctx, {
+                        type: 'pie',
+                        data: chartData,
+                        options: options
+                    });
                     console.log('Chart rendered successfully');
                 } catch (chartError) {
                     console.error('Error creating chart:', chartError);
