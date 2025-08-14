@@ -214,34 +214,64 @@ const VirtualCurrenciesApp = {
                 return;
             }
 
-            // Create simple HTML-based chart
-            console.log('Creating simple HTML chart');
+            // Create pie chart with HTML and CSS
+            console.log('Creating pie chart');
             
             const colors = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40', '#FF6384', '#C9CBCF'];
             
-            let chartHTML = '<div class="chart-container" style="position: relative; height: 300px; width: 100%;">';
-            chartHTML += '<div class="chart-legend" style="margin-top: 20px;">';
+            let chartHTML = `
+                <div class="chart-container" style="position: relative; height: 400px; width: 100%; display: flex; align-items: center; justify-content: center;">
+                    <div class="pie-chart" style="position: relative; width: 200px; height: 200px; border-radius: 50%; margin: 20px;">
+            `;
+            
+            let currentAngle = 0;
+            chartData.forEach((item, index) => {
+                const percentage = (item.value / totalValue) * 100;
+                const angle = (percentage / 100) * 360;
+                const color = colors[index % colors.length];
+                
+                if (percentage > 0) {
+                    chartHTML += `
+                        <div class="pie-slice" style="
+                            position: absolute;
+                            width: 100%;
+                            height: 100%;
+                            border-radius: 50%;
+                            background: conic-gradient(from ${currentAngle}deg, ${color} 0deg, ${color} ${angle}deg, transparent ${angle}deg);
+                            transform: rotate(-90deg);
+                        "></div>
+                    `;
+                    currentAngle += angle;
+                }
+            });
+            
+            chartHTML += `
+                    </div>
+                    <div class="chart-legend" style="margin-left: 30px; flex: 1;">
+            `;
             
             chartData.forEach((item, index) => {
                 const percentage = ((item.value / totalValue) * 100).toFixed(1);
                 const color = colors[index % colors.length];
                 
                 chartHTML += `
-                    <div class="legend-item" style="display: flex; align-items: center; margin-bottom: 10px;">
-                        <div class="color-box" style="width: 20px; height: 20px; background-color: ${color}; border-radius: 50%; margin-right: 10px;"></div>
-                        <div class="legend-text">
+                    <div class="legend-item" style="display: flex; align-items: center; margin-bottom: 15px;">
+                        <div class="color-box" style="width: 20px; height: 20px; background-color: ${color}; border-radius: 50%; margin-right: 10px; flex-shrink: 0;"></div>
+                        <div class="legend-text" style="flex: 1;">
                             <strong>${item.symbol}</strong>: ${percentage}% 
-                            <span style="color: #666;">($${this.formatNumber(item.value)})</span>
+                            <br><span style="color: #666; font-size: 0.9em;">$${this.formatNumber(item.value)}</span>
                         </div>
                     </div>
                 `;
             });
             
-            chartHTML += '</div>';
-            chartHTML += '</div>';
+            chartHTML += `
+                    </div>
+                </div>
+            `;
             
             chartContainer.innerHTML = chartHTML;
-            console.log('Simple HTML chart created successfully');
+            console.log('Pie chart created successfully');
             
         } catch (error) {
             console.error('Error updating portfolio chart:', error);
